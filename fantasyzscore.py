@@ -29,7 +29,7 @@ del stats['Player'] #don't need as it is the df's index
 my_team_as_string_input = input("Enter your roster separated by commas. " 
 								"Capitalization not required.\n")
 
-#add [user input amount] random players to list
+#TODO: add [user input amount] random players to list
 if my_team_as_string_input == "random":
 	pass
 
@@ -64,8 +64,10 @@ def cats_to_float(db):
 	db = db.astype({
 		"FG": float,
 		"FGA": float,
+		"FG%": float,
 		"FT": float,
 		"FTA": float,
+		"FT%": float,
 		"3P": float,
 		"TRB": float,
 		"AST": float,               
@@ -107,7 +109,7 @@ def filter_cats(players_df):
 	return filtered_df	
 
 #filter out players with low minutes played 
-#call should be filtered_stats = filter_stats(stats)
+#call should be filter_stats = filter_stats(stats)
 #update function to let user decide what to filter
 #def filter_stats(season_stats, cat, min) <- possible update
 def filter_stats(season_stats):
@@ -118,22 +120,106 @@ def filter_stats(season_stats):
 			season_df = season_df.append(temp_df)
 	return season_df	
 
-#z-score = (xi - xbar) / sd
-def get_z_scores(players_df):
-	z_headers = ["FG%", "FT%", "3PM", "REB", "AST", "STL", "BLK", "TO", "PTS"]
-	z_score = pd.DataFrame(index = players_df.index, columns = z_headers)
-	for col in players_df.columns:
+#TODO: z-score = (xi - xbar) / sd
+#create dictionary that maps each category to their respective get_z_{} functions
+#call is df = get_z_scores(my_team, stats)
+def get_z_scores(players_df, bball_ref_df):
+	z_headers_percent = ["FG%", "FT%", "3P", "TRB", "AST", "STL", "BLK", "TOV", "PTS"]
+	z_score = pd.DataFrame(index = players_df.index, columns = z_headers_percent)
+	f_stats = filter_stats(bball_ref_df)
+	f_stats = filter_cats(f_stats)
+	f_stats = cats_to_float(f_stats)
+	avg = get_averages(f_stats)
+	variance = get_var(players_df, f_stats, avg)
+	count = 0
 
+	for b in players_df.columns:
+		if b != 'FG' and b != 'FGA' and b != 'FG%' and b != 'FT' and b != 'FTA' and b != 'FT%':
+			for a in players_df.index:
+				z_score[b][a] = (players_df[b][a] - avg[count]) / sqrt(variance[count])
+		count += 1
+	return z_score
 
-#averages for df
+#TODO: averages for df
 def get_averages(players_df):
 	return players_df.mean(axis = 0)
 
-def get_sd(var):
-	return sqrt(var)
+#TODO: s**2 = [summation of [(xi - xbar)**2]] / (n - 1)
+def get_var(players_df, f_stats, avg):
+	count = 0
+	my_var_list = []
 
-#s**2 = [summation of [(xi - xbar)**2]] / (n - 1)
-def get_variance(players_df):
+	for b in players_df.columns:
+		summation = 0
+		if b != 'FG' and b != 'FGA' and b != 'FG%' and b != 'FT' and b != 'FTA' and b != 'FT%':
+			for a in players_df.index:
+				summation += ((players_df[b][a] - avg[count]) ** 2)
+		var = summation / ((len(f_stats.index)) - 1)
+		my_var_list.append(var)
+		count += 1
+	return my_var_list
+
+def get_totals(players_df):
+	z_headers_percent = ["FG%", "FT%", "3PM", "REB", "AST", "STL", "BLK", "TO", "PTS"]
+	z_headers_no_percent = ["FG", "FGM", "FT", "FTM", "3PM", "REB", "AST", "STL", "BLK", "TO", "PTS"]
+	fg_or_ft = []
+	fgm_or_ftm = []
+	temp_list = []
+	total = 0.0
+
+	for b in players_df.columns:
+		if b != 'FG%' and b != 'FT%':
+			for a in players_df.index:
+				total += players_df[b][a]
+			temp_list.append(total)
+		total = 0
+
+	temp_df = pd.DataFrame(columns = z_headers_no_percent)
+	temp_df.loc[len(temp_df)] = temp_list
+	return temp_df
+
+#TODO: 
+def get_z_fg():
+	pass
+
+#TODO: 
+def get_z_ft():
+	pass
+
+#TODO: 
+def get_z_3pm():
+	pass
+
+#TODO: 
+def get_z_reb():
+	pass
+
+#TODO: 
+def get_z_ast():
+	pass
+
+#TODO: 
+def get_z_stl():
+	pass
+
+#TODO: 
+def get_z_blk():
+	pass
+
+#TODO: 
+def get_z_to():
+	pass
+
+#TODO: 
+def get_z_pts():
+	pass
+
+#TODO: add player to roster
+def add_player(player):
+	pass
+
+#TODO: remove player from roster
+def remove_player(player):
 	pass
 
 '''
@@ -151,6 +237,38 @@ jason = ["Andre Drummond",
 		"Nerlens Noel"]
 '''
 
+#filter out all players with <X minutes played
+#sort by total z-score
+#keep top 12*14 players
+#find new z-score based on 12*14 players avg
+
 my_team = initialize(my_team_as_list)
 print(my_team)
+my_team = get_z_scores(my_team, stats)
+print(my_team)
+'''
+#totals for season
+total_stats = filter_stats(stats)
+total_stats = filter_cats(total_stats)
+total_stats = cats_to_float(total_stats)
+stats = stats.astype({"G": float})
+for b in total_stats.columns:
+	if b != 'G':
+		for a in total_stats.index:
+			total_stats[b][a] = stats['G'][a] * total_stats[b][a]
 
+print(total_stats)
+'''
+
+
+
+
+
+
+'''
+def main():
+	pass
+
+if __name__ == '__main__':
+	main()
+'''
