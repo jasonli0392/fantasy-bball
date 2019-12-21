@@ -130,13 +130,32 @@ def get_z_scores(players_df, bball_ref_df):
 	f_stats = filter_cats(f_stats)
 	f_stats = cats_to_float(f_stats)
 	avg = get_averages(f_stats)
-	variance = get_var(players_df, f_stats, avg)
+	variance = get_var(f_stats, avg)
+	fga_list = []
+	fta_list = []
 	count = 0
 
 	for b in players_df.columns:
-		if b != 'FG' and b != 'FGA' and b != 'FG%' and b != 'FT' and b != 'FTA' and b != 'FT%':
+		if b == 'FG' or b == 'FT':
+			useless = True
+		elif b == 'FGA':
+			for a in f_stats.index:
+				fga_list.append(f_stats[b][a])
+		elif b == 'FTA':
+			for a in f_stats.index:
+				fta_list.append(f_stats[b][a])
+		elif b == 'FG%':
+			for a in players_df.index:
+				z_score[b][a] = ((players_df[b][a] - avg[count]) * fga_list[count]) / sqrt(variance[count])
+				z_score[b][a] = round(z_score[b][a], 2)
+		elif b == 'FT%':
+			for a in players_df.index:
+				z_score[b][a] = ((players_df[b][a] - avg[count]) * fta_list[count]) / sqrt(variance[count])
+				z_score[b][a] = round(z_score[b][a], 2)
+		else:
 			for a in players_df.index:
 				z_score[b][a] = (players_df[b][a] - avg[count]) / sqrt(variance[count])
+				z_score[b][a] = round(z_score[b][a], 2)
 		count += 1
 	return z_score
 
@@ -145,25 +164,67 @@ def get_averages(players_df):
 	return players_df.mean(axis = 0)
 
 #TODO: s**2 = [summation of [(xi - xbar)**2]] / (n - 1)
-def get_var(players_df, f_stats, avg):
+def get_var(f_stats, avg):
 	count = 0
 	my_var_list = []
+	n = len(f_stats.index)
+	fga_list_2 = []
+	fta_list_2 = []
 
-	for b in players_df.columns:
+	for b in f_stats.columns:
 		summation = 0
-		if b != 'FG' and b != 'FGA' and b != 'FG%' and b != 'FT' and b != 'FTA' and b != 'FT%':
-			for a in players_df.index:
-				summation += ((players_df[b][a] - avg[count]) ** 2)
-		var = summation / ((len(f_stats.index)) - 1)
+
+		if b == 'FG' or b == 'FT':
+			useless = True
+		elif b == 'FGA':
+			for a in f_stats.index:
+				fga_list_2.append(f_stats[b][a])
+		elif b == 'FTA':
+			for a in f_stats.index:
+				fta_list_2.append(f_stats[b][a])
+		elif b == 'FG%':
+			for a in f_stats.index:
+				xi_minus_xbar = (f_stats[b][a] - avg[count]) * fga_list_2[count]
+				if xi_minus_xbar < 0:
+					xi_minus_xbar = xi_minus_xbar * (-1)
+				summation = summation + (xi_minus_xbar**2)
+		elif b == 'FT%':
+			for a in f_stats.index:
+				xi_minus_xbar = f_stats[b][a] - avg[count] * fta_list_2[count]
+				if xi_minus_xbar < 0:
+					xi_minus_xbar = xi_minus_xbar * (-1)
+				summation = summation + (xi_minus_xbar**2)
+		else:
+			for a in f_stats.index:
+				xi_minus_xbar = f_stats[b][a] - avg[count]
+				if xi_minus_xbar < 0:
+					xi_minus_xbar = xi_minus_xbar * (-1)
+				summation = summation + (xi_minus_xbar**2)
+		var = summation / (n - 1)
 		my_var_list.append(var)
 		count += 1
 	return my_var_list
 
+#add total z-score for each cat and each player
+#total for each cat, append as row
+#total for each player, append as column
+def add_total_z_score(players_df):
+	indices = players_df.index.tolist()
+	indices.append('TOTAL')
+	player_total_z_score = pd.DataFrame(players_df.sum(axis = 1))
+	players_df = players_df.join(player_total_z_score)
+	players_df.rename(columns = {0: 'VALUE'}, inplace = True)
+	players_df = players_df.astype({"VALUE": float})
+	cat_total_z_score = players_df.sum(axis = 0)
+	players_df = players_df.append(cat_total_z_score, ignore_index = True)
+	players_df['NAME'] = indices
+	players_df = players_df.set_index('NAME')
+	return players_df
+
+#unnecessary function but will keep for potential future use
 def get_totals(players_df):
 	z_headers_percent = ["FG%", "FT%", "3PM", "REB", "AST", "STL", "BLK", "TO", "PTS"]
 	z_headers_no_percent = ["FG", "FGM", "FT", "FTM", "3PM", "REB", "AST", "STL", "BLK", "TO", "PTS"]
-	fg_or_ft = []
-	fgm_or_ftm = []
 	temp_list = []
 	total = 0.0
 
@@ -177,42 +238,6 @@ def get_totals(players_df):
 	temp_df = pd.DataFrame(columns = z_headers_no_percent)
 	temp_df.loc[len(temp_df)] = temp_list
 	return temp_df
-
-#TODO: 
-def get_z_fg():
-	pass
-
-#TODO: 
-def get_z_ft():
-	pass
-
-#TODO: 
-def get_z_3pm():
-	pass
-
-#TODO: 
-def get_z_reb():
-	pass
-
-#TODO: 
-def get_z_ast():
-	pass
-
-#TODO: 
-def get_z_stl():
-	pass
-
-#TODO: 
-def get_z_blk():
-	pass
-
-#TODO: 
-def get_z_to():
-	pass
-
-#TODO: 
-def get_z_pts():
-	pass
 
 #TODO: add player to roster
 def add_player(player):
@@ -242,27 +267,12 @@ jason = ["Andre Drummond",
 #keep top 12*14 players
 #find new z-score based on 12*14 players avg
 
+
 my_team = initialize(my_team_as_list)
 print(my_team)
 my_team = get_z_scores(my_team, stats)
+my_team = add_total_z_score(my_team)
 print(my_team)
-'''
-#totals for season
-total_stats = filter_stats(stats)
-total_stats = filter_cats(total_stats)
-total_stats = cats_to_float(total_stats)
-stats = stats.astype({"G": float})
-for b in total_stats.columns:
-	if b != 'G':
-		for a in total_stats.index:
-			total_stats[b][a] = stats['G'][a] * total_stats[b][a]
-
-print(total_stats)
-'''
-
-
-
-
 
 
 '''
