@@ -2,36 +2,36 @@
 from urllib.request import urlopen
 from bs4 import BeautifulSoup
 import pandas as pd
-from math import sqrt
-from unidecode import unidecode
-
-#determines what season of NBA data
-year = 2020
-
-#data source
-url = "https://www.basketball-reference.com/leagues/NBA_{}_per_game.html".format(year)
+import math
+import time
+import unidecode
 
 #parse bball ref for data
+year = 2020
+url = "https://www.basketball-reference.com/leagues/NBA_{}_per_game.html".format(year)
 html = urlopen(url)
 soup = BeautifulSoup(html, 'html.parser')
 
 headers = [th.getText() for th in soup.findAll('tr', limit=2)[0].findAll('th')]
 headers = headers[1:] #don't care about Rk
-
 rows = soup.findAll('tr')[1:] #skip row 0 because it contains the headers
 player_stats = [[td.getText() for td in rows[i].findAll('td')] for i in range(len(rows))]
+
 stats = pd.DataFrame(player_stats, columns = headers)
-stats = pd.DataFrame(player_stats, index = stats['Player'], columns = headers)
 stats = stats.dropna(how='all') #delete all NaN rows
-del stats['Player'] #don't need as it is the df's index
+
+unidecode_names_list = [] #remove accents from characters like 'Luka Dončić' becomes 'Luka Doncic'
+
+for player_name in stats['Player']:
+	unidecode_name = unidecode.unidecode(player_name).lower()
+	unidecode_names_list.append(unidecode_name)
+
+stats['Player'] = unidecode_names_list
+stats = stats.set_index('Player')
 
 #prompt user to input roster
 my_team_as_string_input = input("Enter your roster separated by commas. " 
 								"Capitalization not required.\n")
-
-#TODO: add [user input amount] random players to list
-if my_team_as_string_input == "random":
-	pass
 
 my_team_as_list = my_team_as_string_input.split(",")
 
@@ -47,7 +47,7 @@ for name in temp_my_team_as_list:
 		if (full_name != ""):
 			full_name += " " #add space after first name
 		if (string != " "):
-			string = string.capitalize()
+			string = string.lower()
 			full_name += string
 	my_team_as_list.append(full_name)
 
@@ -90,7 +90,13 @@ def fill(indices):
 	for p in indices:
 		for ind in stats.index:
 			if p == ind:
-				teamdata.append(list(stats.loc[p]))
+				if type(stats.loc[p]) is pd.DataFrame:
+					df = stats.loc[p]
+					df = df.iloc[:1].values.tolist()
+					teamdata.append(df[0])
+					break
+				else:
+					teamdata.append(list(stats.loc[p]))
 	temp_headers = headers[1:] #get rid of 'Player' because it's being used as index
 	temp_df = pd.DataFrame(teamdata, index = indices, columns = temp_headers)
 	return temp_df
@@ -104,8 +110,7 @@ def filter_cats(players_df):
 				or col == "FT" or col == "FTA" or col == "FT%"
 				or col == "3P" or col == "TRB" or col == "AST"
 				or col == "STL" or col == "BLK" or col == "TOV" or col == "PTS"):
-			temp_df = pd.DataFrame(players_df[col], index = players_df.index)
-			filtered_df = filtered_df.join(temp_df)
+			filtered_df[col] = players_df[col]
 	return filtered_df	
 
 #filter out players with low minutes played 
@@ -115,15 +120,21 @@ def filter_cats(players_df):
 def filter_stats(season_stats):
 	season_df = pd.DataFrame(columns = season_stats.columns)
 	for ind in season_stats.index:
-		if float(season_stats.at[ind, 'G']) * float(season_stats.at[ind, 'MP']) > 200:
-			temp_df = pd.Series(season_stats.loc[ind])
-			season_df = season_df.append(temp_df)
+		try:
+			if float(season_stats.at[ind, 'G']) * float(season_stats.at[ind, 'MP']) > 500:
+				temp_df = pd.Series(season_stats.loc[ind])
+				season_df = season_df.append(temp_df)
+		except TypeError:
+			if float(season_stats.at[ind, 'G'][0]) * float(season_stats.at[ind, 'MP'][0]) > 500:
+				temp_df = (stats.loc[ind]).iloc[0]
+				season_df = season_df.append(temp_df)
 	return season_df	
 
 #TODO: z-score = (xi - xbar) / sd
 #create dictionary that maps each category to their respective get_z_{} functions
 #call is df = get_z_scores(my_team, stats)
 def get_z_scores(players_df, bball_ref_df):
+	start_time = time.time()
 	z_headers_percent = ["FG%", "FT%", "3P", "TRB", "AST", "STL", "BLK", "TOV", "PTS"]
 	z_score = pd.DataFrame(index = players_df.index, columns = z_headers_percent)
 	f_stats = filter_stats(bball_ref_df)
@@ -146,15 +157,15 @@ def get_z_scores(players_df, bball_ref_df):
 				fta_list.append(f_stats[b][a])
 		elif b == 'FG%':
 			for a in players_df.index:
-				z_score[b][a] = ((players_df[b][a] - avg[count]) * fga_list[count]) / sqrt(variance[count])
+				z_score[b][a] = ((players_df[b][a] - avg[count]) * fga_list[count]) / math.sqrt(variance[count])
 				z_score[b][a] = round(z_score[b][a], 2)
 		elif b == 'FT%':
 			for a in players_df.index:
-				z_score[b][a] = ((players_df[b][a] - avg[count]) * fta_list[count]) / sqrt(variance[count])
+				z_score[b][a] = ((players_df[b][a] - avg[count]) * fta_list[count]) / math.sqrt(variance[count])
 				z_score[b][a] = round(z_score[b][a], 2)
 		else:
 			for a in players_df.index:
-				z_score[b][a] = (players_df[b][a] - avg[count]) / sqrt(variance[count])
+				z_score[b][a] = (players_df[b][a] - avg[count]) / math.sqrt(variance[count])
 				z_score[b][a] = round(z_score[b][a], 2)
 		count += 1
 	return z_score
@@ -173,7 +184,6 @@ def get_var(f_stats, avg):
 
 	for b in f_stats.columns:
 		summation = 0
-
 		if b == 'FG' or b == 'FT':
 			useless = True
 		elif b == 'FGA':
@@ -184,19 +194,31 @@ def get_var(f_stats, avg):
 				fta_list_2.append(f_stats[b][a])
 		elif b == 'FG%':
 			for a in f_stats.index:
-				xi_minus_xbar = (f_stats[b][a] - avg[count]) * fga_list_2[count]
+				if isinstance(f_stats[b][a], pd.Series):
+					first_instance = list(f_stats[b][a])[0]
+					xi_minus_xbar = (first_instance - avg[count]) * fga_list_2[count]
+				else:
+					xi_minus_xbar = (f_stats[b][a] - avg[count]) * fga_list_2[count]
 				if xi_minus_xbar < 0:
 					xi_minus_xbar = xi_minus_xbar * (-1)
 				summation = summation + (xi_minus_xbar**2)
 		elif b == 'FT%':
 			for a in f_stats.index:
-				xi_minus_xbar = f_stats[b][a] - avg[count] * fta_list_2[count]
+				if isinstance(f_stats[b][a], pd.Series):
+					first_instance = list(f_stats[b][a])[0]
+					xi_minus_xbar = (first_instance - avg[count]) * fta_list_2[count]
+				else:
+					xi_minus_xbar = f_stats[b][a] - avg[count] * fta_list_2[count]
 				if xi_minus_xbar < 0:
 					xi_minus_xbar = xi_minus_xbar * (-1)
 				summation = summation + (xi_minus_xbar**2)
 		else:
 			for a in f_stats.index:
-				xi_minus_xbar = f_stats[b][a] - avg[count]
+				if isinstance(f_stats[b][a], pd.Series):
+					first_instance = list(f_stats[b][a])[0]
+					xi_minus_xbar = (first_instance - avg[count])
+				else:
+					xi_minus_xbar = f_stats[b][a] - avg[count]
 				if xi_minus_xbar < 0:
 					xi_minus_xbar = xi_minus_xbar * (-1)
 				summation = summation + (xi_minus_xbar**2)
@@ -261,11 +283,12 @@ jason = ["Andre Drummond",
 		"Elfrid Payton",
 		"Nerlens Noel"]
 '''
-
+'''
 #filter out all players with <X minutes played
 #sort by total z-score
 #keep top 12*14 players
 #find new z-score based on 12*14 players avg
+'''
 
 
 my_team = initialize(my_team_as_list)
