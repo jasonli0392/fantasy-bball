@@ -53,7 +53,7 @@ for name in temp_my_team_as_list:
 
 #call alphabetical_sort(), fill(), filter_cats(), cats_to_float()
 def initialize(players):
-	players = alphabetical_sort(players)
+	#players = alphabetical_sort(players)
 	db = fill(players)
 	db = filter_cats(db)
 	db = cats_to_float(db)
@@ -74,7 +74,7 @@ def cats_to_float(db):
 		"STL": float,
 		"BLK": float,
 		"TOV": float,
-		"PTS": float,
+		"PTS": float
 		})
 	return db
 
@@ -97,6 +97,7 @@ def fill(indices):
 					break
 				else:
 					teamdata.append(list(stats.loc[p]))
+					break
 	temp_headers = headers[1:] #get rid of 'Player' because it's being used as index
 	temp_df = pd.DataFrame(teamdata, index = indices, columns = temp_headers)
 	return temp_df
@@ -121,20 +122,21 @@ def filter_stats(season_stats):
 	season_df = pd.DataFrame(columns = season_stats.columns)
 	for ind in season_stats.index:
 		try:
-			if float(season_stats.at[ind, 'G']) * float(season_stats.at[ind, 'MP']) > 500:
+			if float(season_stats.at[ind, 'G']) * float(season_stats.at[ind, 'MP']) > 250:
 				temp_df = pd.Series(season_stats.loc[ind])
 				season_df = season_df.append(temp_df)
 		except TypeError:
-			if float(season_stats.at[ind, 'G'][0]) * float(season_stats.at[ind, 'MP'][0]) > 500:
+			if float(season_stats.at[ind, 'G'][0]) * float(season_stats.at[ind, 'MP'][0]) > 250:
 				temp_df = (stats.loc[ind]).iloc[0]
 				season_df = season_df.append(temp_df)
+		except KeyError:
+			return season_stats
 	return season_df	
 
 #TODO: z-score = (xi - xbar) / sd
 #create dictionary that maps each category to their respective get_z_{} functions
 #call is df = get_z_scores(my_team, stats)
 def get_z_scores(players_df, bball_ref_df):
-	start_time = time.time()
 	z_headers_percent = ["FG%", "FT%", "3P", "TRB", "AST", "STL", "BLK", "TOV", "PTS"]
 	z_score = pd.DataFrame(index = players_df.index, columns = z_headers_percent)
 	f_stats = filter_stats(bball_ref_df)
@@ -163,6 +165,10 @@ def get_z_scores(players_df, bball_ref_df):
 			for a in players_df.index:
 				z_score[b][a] = ((players_df[b][a] - avg[count]) * fta_list[count]) / math.sqrt(variance[count])
 				z_score[b][a] = round(z_score[b][a], 2)
+		elif b == 'TOV':
+			for a in players_df.index:
+				z_score[b][a] = (players_df[b][a] - avg[count]) / math.sqrt(variance[count])
+				z_score[b][a] = round(z_score[b][a], 2) * (-1)
 		else:
 			for a in players_df.index:
 				z_score[b][a] = (players_df[b][a] - avg[count]) / math.sqrt(variance[count])
@@ -172,6 +178,79 @@ def get_z_scores(players_df, bball_ref_df):
 
 #TODO: averages for df
 def get_averages(players_df):
+	'''
+	fgm = 0
+	fga = 0
+	ftm = 0
+	fta = 0
+	threep = 0
+	trb = 0
+	ast = 0
+	stl = 0
+	blk = 0 
+	tov = 0
+	pts = 0
+	n = len(players_df.index)
+	avg_list = []
+
+	for c in players_df.columns:
+		if c == 'FG':
+			for ind in players_df.index:
+				fgm += players_df[c][ind]
+		elif c == 'FGA':
+			for ind in players_df.index:
+				fga += players_df[c][ind]
+		elif c == 'FT':
+			for ind in players_df.index:
+				ftm += players_df[c][ind]
+		elif c == 'FTA':
+			for ind in players_df.index:
+				fta += players_df[c][ind]
+		elif c == '3P':
+			for ind in players_df.index:
+				threep += players_df[c][ind]
+		elif c == 'TRB':
+			for ind in players_df.index:
+				trb += players_df[c][ind]
+		elif c == 'AST':
+			for ind in players_df.index:
+				ast += players_df[c][ind]
+		elif c == 'STL':
+			for ind in players_df.index:
+				stl += players_df[c][ind]
+		elif c == 'BLK':
+			for ind in players_df.index:
+				blk += players_df[c][ind]
+		elif c == 'TOV':
+			for ind in players_df.index:
+				tov += players_df[c][ind]
+		elif c == 'PTS':
+			for ind in players_df.index:
+				pts += players_df[c][ind]
+
+	fgp = fgm / fga
+	ftp = ftm / fta
+	threep = threep / n
+	trb = trb / n
+	ast = ast / n
+	stl = stl / n
+	blk = blk / n
+	tov = tov / n
+	pts = pts / n
+
+	avg_list.append(fgp)
+	avg_list.append(ftp)
+	avg_list.append(threep)
+	avg_list.append(trb)
+	avg_list.append(ast)
+	avg_list.append(stl)
+	avg_list.append(blk)
+	avg_list.append(tov)
+	avg_list.append(pts)
+
+	print(avg_list)
+	return avg_list
+	'''
 	return players_df.mean(axis = 0)
 
 #TODO: s**2 = [summation of [(xi - xbar)**2]] / (n - 1)
@@ -225,6 +304,7 @@ def get_var(f_stats, avg):
 		var = summation / (n - 1)
 		my_var_list.append(var)
 		count += 1
+
 	return my_var_list
 
 #add total z-score for each cat and each player
@@ -244,6 +324,7 @@ def add_total_z_score(players_df):
 	return players_df
 
 #unnecessary function but will keep for potential future use
+#can also just scrape total stats URL
 def get_totals(players_df):
 	z_headers_percent = ["FG%", "FT%", "3PM", "REB", "AST", "STL", "BLK", "TO", "PTS"]
 	z_headers_no_percent = ["FG", "FGM", "FT", "FTM", "3PM", "REB", "AST", "STL", "BLK", "TO", "PTS"]
@@ -270,33 +351,51 @@ def remove_player(player):
 	pass
 
 '''
-jason = ["Andre Drummond",
-		"Luka Dončić",
-		"Donovan Mitchell",
-		"Robert Covington",
-		"Eric Bledsoe",
-		"Ricky Rubio",
-		"Rajon Rondo",
-		"PJ Washington",
-		"Kevon Looney",
-		"Danuel House",
-		"Elfrid Payton",
-		"Nerlens Noel"]
-'''
-'''
 #filter out all players with <X minutes played
 #sort by total z-score
 #keep top 12*14 players
 #find new z-score based on 12*14 players avg
 '''
-
+'''
 
 my_team = initialize(my_team_as_list)
 print(my_team)
 my_team = get_z_scores(my_team, stats)
 my_team = add_total_z_score(my_team)
 print(my_team)
+'''
 
+abcd = filter_stats(stats)
+
+no_duplicates_list = []
+for ind in abcd.index:
+	if ind not in no_duplicates_list:
+		no_duplicates_list.append(ind)
+
+temp_stats = initialize(no_duplicates_list)
+stats_z_scores = get_z_scores(temp_stats, stats)
+stats_z_scores = add_total_z_score(stats_z_scores)
+stats_z_scores.drop(stats_z_scores.tail(1).index,inplace=True)
+stats_z_scores = stats_z_scores.sort_values('VALUE', ascending=False)
+
+top_200_players = stats_z_scores[:200].index
+top_200_players = initialize(top_200_players)
+top_200_z_score = get_z_scores(top_200_players, top_200_players)
+top_200_z_score = add_total_z_score(top_200_z_score)
+top_200_z_score = top_200_z_score.sort_values('VALUE', ascending=False)
+print(top_200_z_score.head(10))
+a = top_200_z_score.sort_values('FG%', ascending=False)
+print(a.head(10))
+b = top_200_z_score.sort_values('FT%',ascending=False)
+print(b.head(10))
+
+
+'''
+1. filter player by minutes played
+2. get z-score of filtered player list
+3. sort by highest z-score value and take top 200
+4. get z-score of team 
+'''
 
 '''
 def main():
